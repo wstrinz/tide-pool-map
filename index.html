@@ -233,6 +233,122 @@
     font-style: italic;
     z-index: 50;
   }
+
+  /* === V2 FEATURES === */
+
+  /* Layer Toggle Panel */
+  #layer-panel {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    background: rgba(212,184,150,0.92);
+    border: 1px solid #8b7a5e;
+    border-radius: 6px;
+    padding: 12px 14px;
+    z-index: 50;
+    font-family: 'IM Fell English SC', serif;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+    max-width: 180px;
+    transition: opacity 0.3s;
+  }
+  #layer-panel.hidden { opacity: 0; pointer-events: none; }
+  #layer-panel h3 {
+    font-family: 'Uncial Antiqua', cursive;
+    font-size: 13px;
+    color: #2a1f14;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(139,105,20,0.3);
+    padding-bottom: 4px;
+  }
+  #layer-panel label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #5c4a2e;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  #layer-panel label:hover { color: #2a1f14; }
+  #layer-panel input[type="checkbox"] {
+    accent-color: #8b6914;
+    cursor: pointer;
+  }
+
+  /* Night Mode */
+  body.night-mode { background: #0a0a1a; }
+  body.night-mode #layer-panel {
+    background: rgba(20,20,40,0.92);
+    border-color: rgba(80,80,140,0.4);
+  }
+  body.night-mode #layer-panel h3 { color: #8b9dc3; }
+  body.night-mode #layer-panel label { color: #7b8ba3; }
+  body.night-mode #info-panel {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-color: rgba(80,80,140,0.4);
+  }
+  body.night-mode #info-panel h2 { color: #c4b896; }
+  body.night-mode #info-panel .panel-title-line { color: #8b9dc3; }
+  body.night-mode #info-panel .panel-lore { color: #a0b0c4; border-left-color: rgba(100,120,180,0.3); }
+  body.night-mode #info-panel .panel-details { color: #8b9dc3; }
+  body.night-mode #info-panel .panel-details strong { color: #c4b896; }
+  body.night-mode #info-panel .close-btn { color: #8b9dc3; }
+  body.night-mode .map .night-overlay { opacity: 1; }
+  body.night-mode .map .stars-layer { opacity: 1; }
+  body.night-mode .kingdom-name { fill: #c4b896 !important; filter: url(#glow); }
+  body.night-mode .kingdom-subtitle { fill: #8b9dc3 !important; }
+  body.night-mode #controls button { background: rgba(20,20,40,0.85); }
+  body.night-mode #zoom-level { background: rgba(20,20,40,0.7); }
+
+  /* Volcanic particles */
+  @keyframes particleRise {
+    0% { opacity: 0.8; transform: translateY(0) scale(1); }
+    50% { opacity: 0.5; }
+    100% { opacity: 0; transform: translateY(-25px) scale(0.3); }
+  }
+  .volcanic-particle {
+    animation: particleRise 2s ease-out infinite;
+    transform-origin: center;
+  }
+
+  /* Fog of war */
+  @keyframes fogDrift {
+    0% { opacity: 0.25; transform: translateX(0); }
+    50% { opacity: 0.4; transform: translateX(15px); }
+    100% { opacity: 0.25; transform: translateX(0); }
+  }
+  .fog-layer { animation: fogDrift 8s ease-in-out infinite; }
+
+  /* Help panel */
+  #help-panel {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(42,31,20,0.92);
+    color: #d4b896;
+    font-family: 'IM Fell English SC', serif;
+    font-size: 12px;
+    padding: 14px 20px;
+    border-radius: 6px;
+    border: 1px solid rgba(139,105,20,0.4);
+    z-index: 200;
+    display: none;
+    line-height: 1.8;
+    text-align: center;
+  }
+  #help-panel.visible { display: block; }
+  #help-panel kbd {
+    background: rgba(139,105,20,0.3);
+    border: 1px solid rgba(139,105,20,0.5);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  /* Layer visibility */
+  .layer-hidden { opacity: 0 !important; transition: opacity 0.4s; }
 </style>
 </head>
 <body>
@@ -358,6 +474,7 @@
       <path d="M1100,280 Q1130,260 1160,270 Q1190,265 1210,285 Q1230,280 1240,305 Q1250,330 1235,355 Q1225,370 1200,375 Q1175,380 1155,365 Q1135,370 1120,350 Q1105,340 1108,315 Z" fill="#c4a67a" fill-opacity="0.45" stroke="#8b7a5e" stroke-width="0.8" opacity="0.7" filter="url(#landTexture)"/>
 
       <!-- Mountains -->
+      <g class="layer-mountains">
       <use href="#mountain" x="340" y="160" width="28" height="22"/>
       <use href="#mountain" x="365" y="155" width="32" height="26"/>
       <use href="#mountain" x="395" y="162" width="26" height="20"/>
@@ -373,7 +490,10 @@
       <use href="#mountain" x="222" y="500" width="26" height="20"/>
       <use href="#mountain" x="248" y="508" width="22" height="18"/>
 
+      </g>
+
       <!-- Forests -->
+      <g class="layer-forests">
       <use href="#tree" x="170" y="200" width="10" height="14"/>
       <use href="#tree" x="182" y="195" width="10" height="14"/>
       <use href="#tree" x="194" y="202" width="10" height="14"/>
@@ -391,24 +511,44 @@
       <use href="#tree" x="172" y="525" width="10" height="14"/>
       <use href="#tree" x="184" y="532" width="10" height="14"/>
 
+      </g>
+
       <!-- Rivers -->
+      <g class="layer-rivers">
       <path d="M380,175 Q370,210 390,240 Q400,270 380,300" fill="none" stroke="rgba(60,100,135,0.25)" stroke-width="1.5"/>
       <path d="M840,160 Q850,195 835,225 Q825,255 840,280 Q850,310 835,340" fill="none" stroke="rgba(60,100,135,0.25)" stroke-width="1.5"/>
       <path d="M660,408 Q665,430 655,455" fill="none" stroke="rgba(60,100,135,0.2)" stroke-width="1"/>
       <path d="M230,495 Q235,520 225,545 Q220,560 230,580" fill="none" stroke="rgba(60,100,135,0.2)" stroke-width="1"/>
 
+      </g>
+
       <!-- Trade Routes -->
+      <g class="layer-trade">
       <path d="M350,280 Q500,380 620,420" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
       <path d="M880,300 Q950,380 1050,450" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
       <path d="M680,460 Q600,520 520,580" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
       <path d="M650,470 Q500,500 320,540" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
       <path d="M710,400 Q850,340 1100,310" fill="none" stroke="rgba(80,60,30,0.15)" stroke-width="1.5" stroke-dasharray="3,5"/>
 
+      <!-- Animated Ship on Trade Route -->
+      <g class="layer-trade">
+        <path id="tradeRoutePath" d="M350,280 Q500,380 620,420" fill="none" stroke="none"/>
+        <use href="#ship" width="18" height="18" opacity="0.45">
+          <animateMotion dur="12s" repeatCount="indefinite" rotate="auto">
+            <mpath href="#tradeRoutePath"/>
+          </animateMotion>
+        </use>
+      </g>
+      </g>
+
       <!-- Sea decorations -->
+      <g class="layer-creatures">
       <use href="#seaMonster" x="100" y="750" width="80" height="40" transform="rotate(10, 140, 770)"/>
       <use href="#ship" x="750" y="500" width="25" height="25" opacity="0.3"/>
       <use href="#ship" x="380" y="430" width="20" height="20" opacity="0.25" transform="rotate(-15, 390, 440)"/>
       <use href="#seaMonster" x="1100" y="680" width="70" height="35" transform="rotate(-8, 1135, 697)"/>
+
+      </g>
 
       <!-- Animated waves -->
       <g class="wave-anim">
@@ -508,6 +648,7 @@
       <text class="lore-text" x="810" y="145" font-size="8" opacity="0.5">The Gilt Range</text>
 
       <!-- Lore inscriptions -->
+      <g class="layer-lore">
       <text class="lore-text" x="140" y="320" font-size="8.5">
         <tspan x="140" dy="0">Here be the ruins of a thousand</tspan>
         <tspan x="140" dy="12">duplicated messages, lost to the</tspan>
@@ -524,6 +665,51 @@
         <tspan x="120" dy="11">not with sword but with ink"</tspan>
         <tspan x="120" dy="11">— The Mapwright's Creed</tspan>
       </text>
+
+      </g>
+
+      <!-- Volcanic Particles on Ember Throne -->
+      <g transform="translate(670, 407)">
+        <circle class="volcanic-particle" cx="-4" cy="0" r="1.5" fill="#fb3" style="animation-delay: 0s;"/>
+        <circle class="volcanic-particle" cx="3" cy="-2" r="1.2" fill="#e85" style="animation-delay: 0.4s;"/>
+        <circle class="volcanic-particle" cx="-1" cy="1" r="1" fill="#c44" style="animation-delay: 0.8s;"/>
+        <circle class="volcanic-particle" cx="5" cy="-1" r="1.3" fill="#fb3" style="animation-delay: 1.2s;"/>
+        <circle class="volcanic-particle" cx="-3" cy="-1" r="0.8" fill="#e85" style="animation-delay: 1.6s;"/>
+        <circle class="volcanic-particle" cx="1" cy="1" r="1.1" fill="#c44" style="animation-delay: 0.3s;"/>
+      </g>
+
+      <!-- Fog of War - Uncharted Channels -->
+      <g class="fog-layer" opacity="0.3">
+        <filter id="fogFilter">
+          <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="3" seed="42"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0 0.35  0 0 0 0.5 0"/>
+        </filter>
+        <rect x="900" y="650" width="450" height="350" rx="40" filter="url(#fogFilter)" opacity="0.5"/>
+      </g>
+
+      <!-- Night mode overlay (hidden by default) -->
+      <rect class="night-overlay" width="1400" height="1050" fill="rgba(10,10,30,0.55)" opacity="0" style="pointer-events:none; transition: opacity 0.6s;"/>
+
+      <!-- Stars (hidden by default) -->
+      <g class="stars-layer" opacity="0" style="transition: opacity 0.6s;">
+        <circle cx="120" cy="720" r="0.8" fill="#fff" opacity="0.6"/>
+        <circle cx="300" cy="800" r="0.6" fill="#fff" opacity="0.5"/>
+        <circle cx="500" cy="900" r="0.7" fill="#fff" opacity="0.4"/>
+        <circle cx="700" cy="850" r="0.9" fill="#fff" opacity="0.6"/>
+        <circle cx="900" cy="780" r="0.5" fill="#fff" opacity="0.5"/>
+        <circle cx="1100" cy="850" r="0.8" fill="#fff" opacity="0.4"/>
+        <circle cx="1250" cy="720" r="0.6" fill="#fff" opacity="0.6"/>
+        <circle cx="200" cy="420" r="0.5" fill="#fff" opacity="0.3"/>
+        <circle cx="400" cy="480" r="0.7" fill="#fff" opacity="0.4"/>
+        <circle cx="800" cy="520" r="0.6" fill="#fff" opacity="0.3"/>
+        <circle cx="1000" cy="600" r="0.8" fill="#fff" opacity="0.5"/>
+        <circle cx="150" cy="880" r="0.5" fill="#fff" opacity="0.4"/>
+        <circle cx="600" cy="950" r="0.7" fill="#fff" opacity="0.3"/>
+        <circle cx="1050" cy="750" r="0.6" fill="#fff" opacity="0.5"/>
+        <circle cx="350" cy="700" r="0.4" fill="#fff" opacity="0.4"/>
+        <circle cx="750" cy="680" r="0.5" fill="#fff" opacity="0.3"/>
+        <circle cx="1300" cy="900" r="0.7" fill="#fff" opacity="0.5"/>
+      </g>
 
       <!-- Title Cartouche -->
       <rect x="400" y="38" width="600" height="72" rx="4" fill="rgba(212,184,150,0.6)" stroke="#8b7a5e" stroke-width="1.5"/>
@@ -576,6 +762,23 @@
   </div>
 </div>
 
+<!-- Layer Toggle Panel -->
+<div id="layer-panel">
+  <h3>⚙ Layers</h3>
+  <label><input type="checkbox" checked data-layer="layer-trade"> ⚓ Trade Routes</label>
+  <label><input type="checkbox" checked data-layer="layer-mountains"> ⛰ Mountains</label>
+  <label><input type="checkbox" checked data-layer="layer-forests"> 🌲 Forests</label>
+  <label><input type="checkbox" checked data-layer="layer-rivers"> 🌊 Rivers</label>
+  <label><input type="checkbox" checked data-layer="layer-creatures"> 🐉 Sea Creatures</label>
+  <label><input type="checkbox" checked data-layer="layer-lore"> 📜 Lore Text</label>
+</div>
+
+<!-- Help Panel -->
+<div id="help-panel">
+  <kbd>Scroll</kbd> Zoom · <kbd>Drag</kbd> Pan · <kbd>Click</kbd> Kingdom Info · <kbd>Esc</kbd> Close<br>
+  <kbd>+</kbd><kbd>-</kbd> Zoom · <kbd>L</kbd> Toggle Layers · <kbd>N</kbd> Night Mode · <kbd>?</kbd> This Help
+</div>
+
 <!-- Tooltip -->
 <div id="tooltip"></div>
 
@@ -594,6 +797,8 @@
   <button onclick="zoomOut()">− Zoom</button>
   <button onclick="resetView()">⌂ Reset</button>
   <button onclick="fitToScreen()">⊞ Fit</button>
+  <button id="night-btn" onclick="toggleNight()">🌙 Night</button>
+  <button onclick="toggleHelp()">? Help</button>
 </div>
 
 <div id="zoom-level">100%</div>
@@ -873,12 +1078,38 @@ viewport.addEventListener('click', (e) => {
   }
 });
 
+// Layer toggles
+document.querySelectorAll('#layer-panel input[type="checkbox"]').forEach(cb => {
+  cb.addEventListener('change', () => {
+    const layerClass = cb.dataset.layer;
+    document.querySelectorAll('.' + layerClass).forEach(el => {
+      el.classList.toggle('layer-hidden', !cb.checked);
+    });
+  });
+});
+
+// Night mode
+let nightMode = false;
+function toggleNight() {
+  nightMode = !nightMode;
+  document.body.classList.toggle('night-mode', nightMode);
+  document.getElementById('night-btn').textContent = nightMode ? '☀️ Day' : '🌙 Night';
+}
+
+// Help panel
+function toggleHelp() {
+  document.getElementById('help-panel').classList.toggle('visible');
+}
+
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closePanel();
+  if (e.key === 'Escape') { closePanel(); document.getElementById('help-panel').classList.remove('visible'); }
   if (e.key === '+' || e.key === '=') zoomIn();
   if (e.key === '-') zoomOut();
   if (e.key === '0') fitToScreen();
+  if (e.key === 'n' || e.key === 'N') toggleNight();
+  if (e.key === 'l' || e.key === 'L') document.getElementById('layer-panel').classList.toggle('hidden');
+  if (e.key === '?') toggleHelp();
 });
 </script>
 </body>
