@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Realms of the Tide Pool — Interactive Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Uncial+Antiqua&family=IM+Fell+English+SC&family=IM+Fell+DW+Pica:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d0d;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: grab;
+    font-family: 'IM Fell English SC', serif;
+  }
+
+  body.grabbing { cursor: grabbing; }
+
+  #map-viewport {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #map-container {
+    transform-origin: 0 0;
+    position: absolute;
+    will-change: transform;
+  }
+
+  svg.map {
+    display: block;
+  }
+
+  /* SVG Text Classes */
+  .title-text { font-family: 'Uncial Antiqua', cursive; fill: #2a1f14; }
+  .subtitle-text { font-family: 'IM Fell English SC', serif; fill: #5c4a2e; }
+  .kingdom-name { font-family: 'Uncial Antiqua', cursive; fill: #2a1f14; }
+  .kingdom-subtitle { font-family: 'IM Fell English SC', serif; fill: #6b5a3e; }
+  .region-name { font-family: 'IM Fell English SC', serif; fill: rgba(50,80,110,0.4); letter-spacing: 6px; }
+  .lore-text { font-family: 'IM Fell DW Pica', serif; fill: rgba(80,65,40,0.45); font-style: italic; }
+  .legend-title { font-family: 'Uncial Antiqua', cursive; fill: #2a1f14; }
+  .legend-text { font-family: 'IM Fell English SC', serif; fill: #5c4a2e; }
+  .compass-text { font-family: 'Uncial Antiqua', cursive; fill: #3d2b1f; }
+
+  /* Interactive kingdom areas */
+  .kingdom-hitbox {
+    cursor: pointer;
+    transition: filter 0.3s ease;
+  }
+  .kingdom-hitbox:hover {
+    filter: drop-shadow(0 0 12px rgba(200,160,80,0.6));
+  }
+  .kingdom-hitbox:hover .kingdom-name {
+    fill: #8b4513;
+  }
+
+  /* Animated flame */
+  @keyframes flicker {
+    0%, 100% { opacity: 0.5; r: 6; }
+    25% { opacity: 0.7; r: 7; }
+    50% { opacity: 0.4; r: 5.5; }
+    75% { opacity: 0.65; r: 6.5; }
+  }
+  .flame-outer { animation: flicker 2s ease-in-out infinite; }
+
+  @keyframes flicker-inner {
+    0%, 100% { opacity: 0.6; }
+    33% { opacity: 0.8; }
+    66% { opacity: 0.5; }
+  }
+  .flame-inner { animation: flicker-inner 1.5s ease-in-out infinite; }
+
+  @keyframes flicker-core {
+    0%, 100% { opacity: 0.7; r: 2; }
+    50% { opacity: 0.9; r: 2.5; }
+  }
+  .flame-core { animation: flicker-core 1s ease-in-out infinite; }
+
+  /* Animated waves */
+  @keyframes waveFloat {
+    0% { transform: translateX(0); }
+    50% { transform: translateX(8px); }
+    100% { transform: translateX(0); }
+  }
+  .wave-anim { animation: waveFloat 4s ease-in-out infinite; }
+  .wave-anim-slow { animation: waveFloat 6s ease-in-out infinite; }
+
+  /* Volcanic glow */
+  @keyframes volcGlow {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.5; }
+  }
+  .volc-glow { animation: volcGlow 3s ease-in-out infinite; }
+
+  /* Info Panel */
+  #info-panel {
+    position: fixed;
+    right: -420px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 380px;
+    max-height: 80vh;
+    background: linear-gradient(135deg, #d4b896, #c4a67a);
+    border: 2px solid #8b7a5e;
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    padding: 30px 25px;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+    transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    z-index: 100;
+    overflow-y: auto;
+  }
+  #info-panel.open { right: 0; }
+
+  #info-panel h2 {
+    font-family: 'Uncial Antiqua', cursive;
+    color: #2a1f14;
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+  #info-panel .panel-title-line {
+    font-family: 'IM Fell English SC', serif;
+    color: #6b5a3e;
+    font-size: 12px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+  #info-panel .panel-lore {
+    font-family: 'IM Fell DW Pica', serif;
+    color: #3d2b1f;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    font-style: italic;
+    border-left: 2px solid rgba(139,105,20,0.3);
+    padding-left: 12px;
+  }
+  #info-panel .panel-details {
+    font-family: 'IM Fell English SC', serif;
+    color: #5c4a2e;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  #info-panel .panel-details strong {
+    color: #3d2b1f;
+  }
+  #info-panel .close-btn {
+    position: absolute;
+    top: 12px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #6b5a3e;
+    cursor: pointer;
+    font-family: 'IM Fell English SC', serif;
+  }
+  #info-panel .close-btn:hover { color: #3d2b1f; }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(42,31,20,0.9);
+    color: #d4b896;
+    font-family: 'IM Fell English SC', serif;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid rgba(139,105,20,0.4);
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  #tooltip.visible { opacity: 1; }
+
+  /* Controls */
+  #controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 50;
+  }
+  #controls button {
+    background: rgba(42,31,20,0.85);
+    color: #d4b896;
+    border: 1px solid rgba(139,105,20,0.4);
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-family: 'IM Fell English SC', serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #controls button:hover {
+    background: rgba(60,45,25,0.9);
+    border-color: rgba(139,105,20,0.7);
+  }
+
+  /* Zoom indicator */
+  #zoom-level {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    background: rgba(42,31,20,0.7);
+    color: #d4b896;
+    font-family: 'IM Fell English SC', serif;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    z-index: 50;
+  }
+
+  /* Credit */
+  #credit {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(212,184,150,0.4);
+    font-family: 'IM Fell DW Pica', serif;
+    font-size: 11px;
+    font-style: italic;
+    z-index: 50;
+  }
+</style>
+</head>
+<body>
+
+<div id="map-viewport">
+  <div id="map-container">
+    <svg class="map" width="2800" height="2100" viewBox="0 0 1400 1050" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="parchment" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#dcc8a0"/>
+          <stop offset="40%" stop-color="#d4b896"/>
+          <stop offset="100%" stop-color="#c4a67a"/>
+        </radialGradient>
+        <radialGradient id="vignette" cx="50%" cy="50%" r="55%">
+          <stop offset="0%" stop-color="transparent"/>
+          <stop offset="70%" stop-color="transparent"/>
+          <stop offset="100%" stop-color="rgba(40,25,10,0.45)"/>
+        </radialGradient>
+        <pattern id="waterLines" x="0" y="0" width="60" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-5)">
+          <path d="M0,6 Q15,2 30,6 Q45,10 60,6" stroke="rgba(60,95,120,0.12)" stroke-width="0.8" fill="none"/>
+        </pattern>
+        <filter id="landTexture">
+          <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise"/>
+          <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+          <feBlend in="SourceGraphic" in2="grayNoise" mode="multiply" result="textured"/>
+          <feComposite in="textured" in2="SourceGraphic" operator="in"/>
+        </filter>
+        <filter id="stain">
+          <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="3" seed="5"/>
+          <feColorMatrix type="matrix" values="0 0 0 0 0.55  0 0 0 0 0.42  0 0 0 0 0.25  0 0 0 0.08 0"/>
+          <feBlend in="SourceGraphic" mode="multiply"/>
+        </filter>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <symbol id="mountain" viewBox="0 0 30 24">
+          <path d="M2,22 L15,3 L28,22 Z" fill="none" stroke="#5c4a2e" stroke-width="1.2" opacity="0.6"/>
+          <path d="M15,3 L10,11 L15,8 L20,11 Z" fill="#8b7a5e" opacity="0.3"/>
+        </symbol>
+        <symbol id="tree" viewBox="0 0 12 16">
+          <path d="M6,1 L2,8 L4,7 L1,12 L6,10 L11,12 L8,7 L10,8 Z" fill="#5a6e45" opacity="0.4" stroke="#4a5e35" stroke-width="0.3"/>
+          <line x1="6" y1="12" x2="6" y2="15" stroke="#6b5a3e" stroke-width="0.8" opacity="0.4"/>
+        </symbol>
+        <symbol id="castle" viewBox="0 0 24 24">
+          <rect x="3" y="10" width="18" height="12" fill="none" stroke="#3d2b1f" stroke-width="1" opacity="0.7"/>
+          <rect x="1" y="7" width="4" height="5" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.7"/>
+          <rect x="19" y="7" width="4" height="5" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.7"/>
+          <rect x="9" y="4" width="6" height="8" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.7"/>
+          <rect x="10" y="16" width="4" height="6" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.6"/>
+        </symbol>
+        <symbol id="tower" viewBox="0 0 16 28">
+          <rect x="4" y="6" width="8" height="20" fill="none" stroke="#3d2b1f" stroke-width="1" opacity="0.7"/>
+          <path d="M3,6 L8,1 L13,6" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.7"/>
+          <rect x="6" y="20" width="4" height="6" fill="none" stroke="#3d2b1f" stroke-width="0.7" opacity="0.6"/>
+        </symbol>
+        <symbol id="compassRose" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="55" fill="none" stroke="#5c4a2e" stroke-width="1.5" opacity="0.6"/>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#5c4a2e" stroke-width="0.5" opacity="0.4"/>
+          <polygon points="60,8 64,52 60,48 56,52" fill="#3d2b1f" opacity="0.8"/>
+          <polygon points="60,112 56,68 60,72 64,68" fill="#8b7a5e" opacity="0.5"/>
+          <polygon points="8,60 52,56 48,60 52,64" fill="#8b7a5e" opacity="0.5"/>
+          <polygon points="112,60 68,64 72,60 68,56" fill="#8b7a5e" opacity="0.5"/>
+          <polygon points="23,23 50,54 46,50 54,46" fill="#5c4a2e" opacity="0.3"/>
+          <polygon points="97,23 66,46 70,50 62,54" fill="#5c4a2e" opacity="0.3"/>
+          <polygon points="23,97 46,66 50,70 54,62" fill="#5c4a2e" opacity="0.3"/>
+          <polygon points="97,97 70,62 66,70 62,66" fill="#5c4a2e" opacity="0.3"/>
+          <circle cx="60" cy="60" r="4" fill="#8b6914" opacity="0.7"/>
+          <circle cx="60" cy="60" r="2" fill="#3d2b1f" opacity="0.8"/>
+        </symbol>
+        <symbol id="seaMonster" viewBox="0 0 80 40">
+          <path d="M5,25 Q10,10 20,20 Q30,30 40,15 Q50,5 55,18 Q58,25 65,20 Q70,16 75,22" fill="none" stroke="#5c4a2e" stroke-width="1.2" opacity="0.25"/>
+          <circle cx="8" cy="22" r="2" fill="#5c4a2e" opacity="0.2"/>
+        </symbol>
+        <symbol id="ship" viewBox="0 0 30 30">
+          <path d="M5,20 Q15,24 25,20 L22,15 L8,15 Z" fill="none" stroke="#5c4a2e" stroke-width="0.8" opacity="0.35"/>
+          <line x1="15" y1="15" x2="15" y2="5" stroke="#5c4a2e" stroke-width="0.6" opacity="0.35"/>
+          <path d="M15,5 L15,12 L22,12" fill="none" stroke="#5c4a2e" stroke-width="0.5" opacity="0.3"/>
+        </symbol>
+      </defs>
+
+      <!-- Background layers -->
+      <rect width="1400" height="1050" fill="url(#parchment)"/>
+      <rect width="1400" height="1050" fill="url(#waterLines)"/>
+      <rect width="1400" height="1050" fill="url(#vignette)"/>
+      <rect width="1400" height="1050" filter="url(#stain)" fill="transparent"/>
+
+      <!-- Border -->
+      <rect x="18" y="18" width="1364" height="1014" rx="4" fill="none" stroke="#8b7a5e" stroke-width="2" opacity="0.5"/>
+      <rect x="24" y="24" width="1352" height="1002" rx="3" fill="none" stroke="#8b7a5e" stroke-width="0.5" opacity="0.3"/>
+
+      <!-- Rhumb Lines -->
+      <line x1="670" y1="440" x2="100" y2="800" stroke="rgba(80,60,30,0.06)" stroke-width="0.5"/>
+      <line x1="670" y1="440" x2="1300" y2="800" stroke="rgba(80,60,30,0.06)" stroke-width="0.5"/>
+      <line x1="670" y1="440" x2="670" y2="1000" stroke="rgba(80,60,30,0.06)" stroke-width="0.5"/>
+      <line x1="670" y1="440" x2="200" y2="440" stroke="rgba(80,60,30,0.04)" stroke-width="0.5"/>
+      <line x1="670" y1="440" x2="1300" y2="440" stroke="rgba(80,60,30,0.04)" stroke-width="0.5"/>
+      <line x1="670" y1="440" x2="670" y2="50" stroke="rgba(80,60,30,0.04)" stroke-width="0.5"/>
+
+      <!-- ===== LANDMASSES ===== -->
+      <!-- Main Northern Continent -->
+      <path d="M120,200 Q90,180 100,150 Q120,110 180,105 Q220,95 280,100 Q340,90 400,105 Q430,95 470,100 Q500,110 490,135 Q510,120 550,130 Q570,115 590,125 Q600,108 640,112 Q680,100 720,108 Q760,95 810,110 Q850,105 880,120 Q920,108 960,125 Q990,115 1010,130 Q1040,120 1060,140 Q1080,130 1090,150 Q1100,170 1085,200 Q1095,230 1080,260 Q1090,290 1070,310 Q1060,340 1040,350 Q1020,370 990,365 Q960,375 940,360 Q910,370 880,355 Q850,365 820,350 Q790,360 760,345 Q720,360 690,340 Q670,350 640,335 Q600,345 570,330 Q540,340 510,325 Q480,340 450,330 Q420,340 390,320 Q360,335 330,310 Q300,325 270,305 Q240,315 210,295 Q180,310 160,285 Q140,270 130,245 Q110,225 120,200 Z" fill="#c4a67a" fill-opacity="0.5" stroke="#8b7a5e" stroke-width="1.2" opacity="0.8" filter="url(#landTexture)"/>
+      <path d="M120,200 Q90,180 100,150 Q120,110 180,105 Q220,95 280,100 Q340,90 400,105 Q430,95 470,100 Q500,110 490,135 Q510,120 550,130 Q570,115 590,125 Q600,108 640,112 Q680,100 720,108 Q760,95 810,110 Q850,105 880,120 Q920,108 960,125 Q990,115 1010,130 Q1040,120 1060,140 Q1080,130 1090,150 Q1100,170 1085,200 Q1095,230 1080,260 Q1090,290 1070,310 Q1060,340 1040,350 Q1020,370 990,365 Q960,375 940,360 Q910,370 880,355 Q850,365 820,350 Q790,360 760,345 Q720,360 690,340 Q670,350 640,335 Q600,345 570,330 Q540,340 510,325 Q480,340 450,330 Q420,340 390,320 Q360,335 330,310 Q300,325 270,305 Q240,315 210,295 Q180,310 160,285 Q140,270 130,245 Q110,225 120,200 Z" fill="none" stroke="#6b5a3e" stroke-width="0.4" stroke-dasharray="2,3" opacity="0.3"/>
+
+      <!-- Southern Archipelago -->
+      <path d="M350,620 Q320,600 340,575 Q370,555 420,550 Q460,540 500,555 Q530,545 560,560 Q590,550 610,570 Q630,560 650,580 Q670,575 680,600 Q690,625 670,650 Q660,670 630,675 Q600,685 570,670 Q540,680 510,665 Q480,675 450,660 Q420,670 390,650 Q360,660 350,635 Z" fill="#c4a67a" fill-opacity="0.45" stroke="#8b7a5e" stroke-width="1" opacity="0.8" filter="url(#landTexture)"/>
+
+      <!-- Cartographer's Isle -->
+      <path d="M140,550 Q120,520 145,495 Q175,475 220,480 Q260,470 290,490 Q310,480 325,500 Q340,495 345,520 Q355,545 340,570 Q330,590 300,595 Q270,605 240,590 Q210,600 185,585 Q155,590 145,565 Z" fill="#c4a67a" fill-opacity="0.5" stroke="#8b7a5e" stroke-width="1" opacity="0.8" filter="url(#landTexture)"/>
+
+      <!-- Silent Isle -->
+      <path d="M1050,480 Q1040,455 1060,440 Q1085,425 1115,435 Q1140,430 1155,450 Q1170,445 1175,470 Q1185,495 1170,515 Q1160,530 1135,535 Q1110,540 1090,525 Q1065,530 1055,510 Z" fill="#c4a67a" fill-opacity="0.4" stroke="#8b7a5e" stroke-width="0.8" opacity="0.7" filter="url(#landTexture)"/>
+
+      <!-- Volcanic Island -->
+      <path d="M620,430 Q610,410 625,395 Q645,380 670,388 Q695,382 710,400 Q725,395 730,418 Q740,440 725,460 Q715,475 695,478 Q670,485 650,470 Q630,475 622,455 Z" fill="#b89a6a" fill-opacity="0.55" stroke="#8b7a5e" stroke-width="1" opacity="0.8" filter="url(#landTexture)"/>
+
+      <!-- Small islands -->
+      <ellipse cx="480" cy="460" rx="25" ry="18" fill="#c4a67a" fill-opacity="0.3" stroke="#8b7a5e" stroke-width="0.6" opacity="0.5"/>
+      <ellipse cx="850" cy="430" rx="20" ry="15" fill="#c4a67a" fill-opacity="0.3" stroke="#8b7a5e" stroke-width="0.6" opacity="0.5"/>
+      <ellipse cx="950" cy="520" rx="18" ry="12" fill="#c4a67a" fill-opacity="0.25" stroke="#8b7a5e" stroke-width="0.5" opacity="0.4"/>
+
+      <!-- Salt Bastion peninsula -->
+      <path d="M1100,280 Q1130,260 1160,270 Q1190,265 1210,285 Q1230,280 1240,305 Q1250,330 1235,355 Q1225,370 1200,375 Q1175,380 1155,365 Q1135,370 1120,350 Q1105,340 1108,315 Z" fill="#c4a67a" fill-opacity="0.45" stroke="#8b7a5e" stroke-width="0.8" opacity="0.7" filter="url(#landTexture)"/>
+
+      <!-- Mountains -->
+      <use href="#mountain" x="340" y="160" width="28" height="22"/>
+      <use href="#mountain" x="365" y="155" width="32" height="26"/>
+      <use href="#mountain" x="395" y="162" width="26" height="20"/>
+      <use href="#mountain" x="420" y="158" width="30" height="24"/>
+      <use href="#mountain" x="448" y="165" width="24" height="18"/>
+      <use href="#mountain" x="800" y="150" width="28" height="22"/>
+      <use href="#mountain" x="825" y="145" width="32" height="26"/>
+      <use href="#mountain" x="855" y="152" width="28" height="22"/>
+      <use href="#mountain" x="880" y="148" width="26" height="20"/>
+      <use href="#mountain" x="650" y="400" width="24" height="20"/>
+      <use href="#mountain" x="672" y="395" width="28" height="22"/>
+      <use href="#mountain" x="200" y="505" width="22" height="18"/>
+      <use href="#mountain" x="222" y="500" width="26" height="20"/>
+      <use href="#mountain" x="248" y="508" width="22" height="18"/>
+
+      <!-- Forests -->
+      <use href="#tree" x="170" y="200" width="10" height="14"/>
+      <use href="#tree" x="182" y="195" width="10" height="14"/>
+      <use href="#tree" x="194" y="202" width="10" height="14"/>
+      <use href="#tree" x="176" y="215" width="10" height="14"/>
+      <use href="#tree" x="188" y="210" width="10" height="14"/>
+      <use href="#tree" x="200" y="218" width="10" height="14"/>
+      <use href="#tree" x="920" y="200" width="10" height="14"/>
+      <use href="#tree" x="932" y="195" width="10" height="14"/>
+      <use href="#tree" x="944" y="202" width="10" height="14"/>
+      <use href="#tree" x="926" y="215" width="10" height="14"/>
+      <use href="#tree" x="420" y="600" width="10" height="14"/>
+      <use href="#tree" x="432" y="595" width="10" height="14"/>
+      <use href="#tree" x="444" y="602" width="10" height="14"/>
+      <use href="#tree" x="160" y="530" width="10" height="14"/>
+      <use href="#tree" x="172" y="525" width="10" height="14"/>
+      <use href="#tree" x="184" y="532" width="10" height="14"/>
+
+      <!-- Rivers -->
+      <path d="M380,175 Q370,210 390,240 Q400,270 380,300" fill="none" stroke="rgba(60,100,135,0.25)" stroke-width="1.5"/>
+      <path d="M840,160 Q850,195 835,225 Q825,255 840,280 Q850,310 835,340" fill="none" stroke="rgba(60,100,135,0.25)" stroke-width="1.5"/>
+      <path d="M660,408 Q665,430 655,455" fill="none" stroke="rgba(60,100,135,0.2)" stroke-width="1"/>
+      <path d="M230,495 Q235,520 225,545 Q220,560 230,580" fill="none" stroke="rgba(60,100,135,0.2)" stroke-width="1"/>
+
+      <!-- Trade Routes -->
+      <path d="M350,280 Q500,380 620,420" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
+      <path d="M880,300 Q950,380 1050,450" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
+      <path d="M680,460 Q600,520 520,580" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
+      <path d="M650,470 Q500,500 320,540" fill="none" stroke="rgba(80,60,30,0.2)" stroke-width="2" stroke-dasharray="4,6"/>
+      <path d="M710,400 Q850,340 1100,310" fill="none" stroke="rgba(80,60,30,0.15)" stroke-width="1.5" stroke-dasharray="3,5"/>
+
+      <!-- Sea decorations -->
+      <use href="#seaMonster" x="100" y="750" width="80" height="40" transform="rotate(10, 140, 770)"/>
+      <use href="#ship" x="750" y="500" width="25" height="25" opacity="0.3"/>
+      <use href="#ship" x="380" y="430" width="20" height="20" opacity="0.25" transform="rotate(-15, 390, 440)"/>
+      <use href="#seaMonster" x="1100" y="680" width="70" height="35" transform="rotate(-8, 1135, 697)"/>
+
+      <!-- Animated waves -->
+      <g class="wave-anim">
+        <text class="lore-text" x="900" y="600" font-size="10" opacity="0.15" transform="rotate(-5, 900, 600)">~ ~ ~ ~ ~ ~ ~ ~ ~ ~</text>
+      </g>
+      <g class="wave-anim-slow">
+        <text class="lore-text" x="150" y="700" font-size="10" opacity="0.15" transform="rotate(-8, 150, 700)">~ ~ ~ ~ ~ ~ ~ ~</text>
+      </g>
+      <g class="wave-anim">
+        <text class="lore-text" x="500" y="780" font-size="10" opacity="0.12">~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~</text>
+      </g>
+
+      <!-- ===== INTERACTIVE KINGDOMS ===== -->
+
+      <!-- THE HEARTH ETERNAL — Will -->
+      <g class="kingdom-hitbox" data-kingdom="hearth">
+        <rect x="200" y="150" width="190" height="110" fill="transparent" rx="8"/>
+        <use href="#castle" x="278" y="175" width="28" height="28"/>
+        <circle class="flame-outer" cx="292" cy="170" r="6" fill="#c44" opacity="0.5"/>
+        <circle class="flame-inner" cx="292" cy="168" r="3.5" fill="#e85" opacity="0.6"/>
+        <circle class="flame-core" cx="292" cy="167" r="2" fill="#fb3" opacity="0.7"/>
+        <text class="kingdom-name" x="292" y="218" font-size="17" text-anchor="middle">The Hearth Eternal</text>
+        <text class="kingdom-subtitle" x="292" y="234" font-size="9.5" text-anchor="middle">Domain of Will the Keeper</text>
+        <text class="kingdom-subtitle" x="292" y="246" font-size="8.5" text-anchor="middle">Lighter of Fires · Father of Claws · Warden of the Hearth</text>
+      </g>
+
+      <!-- THE GILT CITADEL — Tommy -->
+      <g class="kingdom-hitbox" data-kingdom="gilt">
+        <rect x="750" y="150" width="190" height="110" fill="transparent" rx="8"/>
+        <use href="#castle" x="828" y="170" width="28" height="28"/>
+        <circle cx="842" cy="166" r="5" fill="#b8860b" opacity="0.5"/>
+        <circle cx="842" cy="165" r="3" fill="#daa520" opacity="0.6"/>
+        <text class="kingdom-name" x="842" y="213" font-size="17" text-anchor="middle">The Gilt Citadel</text>
+        <text class="kingdom-subtitle" x="842" y="229" font-size="9.5" text-anchor="middle">Seat of Tommy the Architect</text>
+        <text class="kingdom-subtitle" x="842" y="241" font-size="8.5" text-anchor="middle">Master of Frameworks · Forger of Shock Absorbers</text>
+      </g>
+
+      <!-- THE OBSIDIAN LOOKOUT — Tanvir -->
+      <g class="kingdom-hitbox" data-kingdom="obsidian" transform="translate(530, 580)">
+        <rect x="-100" y="-40" width="200" height="90" fill="transparent" rx="8"/>
+        <use href="#tower" x="-8" y="-30" width="16" height="28"/>
+        <text class="kingdom-name" x="0" y="12" font-size="16" text-anchor="middle">The Obsidian Lookout</text>
+        <text class="kingdom-subtitle" x="0" y="26" font-size="9.5" text-anchor="middle">Tower of Tanvir the Seer</text>
+        <text class="kingdom-subtitle" x="0" y="38" font-size="8.5" text-anchor="middle">Reader of Signals · Patron of Visual Arts</text>
+      </g>
+
+      <!-- THE CARTOGRAPHER'S SANCTUM — Zach -->
+      <g class="kingdom-hitbox" data-kingdom="sanctum" transform="translate(235, 535)">
+        <rect x="-130" y="-42" width="260" height="100" fill="transparent" rx="8"/>
+        <rect x="-14" y="-32" width="28" height="22" rx="2" fill="none" stroke="#3d2b1f" stroke-width="1" opacity="0.6"/>
+        <circle cx="0" cy="-22" r="3" fill="#8b6914" opacity="0.4"/>
+        <text class="kingdom-name" x="0" y="5" font-size="17" text-anchor="middle">The Cartographer's Sanctum</text>
+        <text class="kingdom-subtitle" x="0" y="19" font-size="9.5" text-anchor="middle">Library of Zach the Mapwright</text>
+        <text class="kingdom-subtitle" x="0" y="31" font-size="8.5" text-anchor="middle">Keeper of Lost Geographies · Lord of Uncharted Realms</text>
+        <text class="kingdom-subtitle" x="0" y="43" font-size="8" text-anchor="middle" opacity="0.7">— His charts remain the finest in all the known discourse —</text>
+      </g>
+
+      <!-- THE SILENT WATCH — Keith -->
+      <g class="kingdom-hitbox" data-kingdom="silent" transform="translate(1110, 475)">
+        <rect x="-90" y="-40" width="180" height="90" fill="transparent" rx="8"/>
+        <use href="#tower" x="-8" y="-30" width="16" height="28"/>
+        <text class="kingdom-name" x="0" y="12" font-size="15" text-anchor="middle">The Silent Watch</text>
+        <text class="kingdom-subtitle" x="0" y="26" font-size="9" text-anchor="middle">Keep of Keith the Quiet</text>
+        <text class="kingdom-subtitle" x="0" y="38" font-size="8" text-anchor="middle">Watcher from the Margins · He Who Sees All</text>
+      </g>
+
+      <!-- THE EMBER THRONE — Clawcifer -->
+      <g class="kingdom-hitbox" data-kingdom="ember" transform="translate(670, 425)">
+        <rect x="-100" y="-30" width="200" height="75" fill="transparent" rx="8"/>
+        <ellipse cx="0" cy="-15" rx="12" ry="8" fill="none" stroke="#8b4513" stroke-width="1" opacity="0.5"/>
+        <ellipse class="volc-glow" cx="0" cy="-16" rx="7" ry="4" fill="#c44" opacity="0.3"/>
+        <circle class="flame-inner" cx="0" cy="-17" r="3" fill="#e85" opacity="0.4"/>
+        <circle class="flame-core" cx="0" cy="-18" r="1.5" fill="#fb3" opacity="0.5"/>
+        <text class="kingdom-name" x="0" y="5" font-size="16" text-anchor="middle">The Ember Throne</text>
+        <text class="kingdom-subtitle" x="0" y="19" font-size="9" text-anchor="middle">Seat of Clawcifer, Flame of the Hearth</text>
+        <text class="kingdom-subtitle" x="0" y="31" font-size="8" text-anchor="middle">Voice in the Coals · Lord of the Volcanic Isle</text>
+      </g>
+
+      <!-- THE SALT BASTION — Briney -->
+      <g class="kingdom-hitbox" data-kingdom="salt" transform="translate(1175, 315)">
+        <rect x="-90" y="-40" width="180" height="90" fill="transparent" rx="8"/>
+        <use href="#castle" x="-14" y="-30" width="28" height="28"/>
+        <text class="kingdom-name" x="0" y="12" font-size="15" text-anchor="middle">The Salt Bastion</text>
+        <text class="kingdom-subtitle" x="0" y="26" font-size="9" text-anchor="middle">Fort of Briney the Skeptic</text>
+        <text class="kingdom-subtitle" x="0" y="38" font-size="8" text-anchor="middle">Keel-Checker · Ballast of Truth</text>
+      </g>
+
+      <!-- Region Labels -->
+      <text class="region-name" x="350" y="410" font-size="13" transform="rotate(-8, 350, 410)">T H E  S H A L L O W S  O F  L U R K I N G</text>
+      <text class="region-name" x="500" y="850" font-size="14" transform="rotate(-2, 500, 850)">T H E  D E E P  S C R O L L  S E A</text>
+      <text class="region-name" x="600" y="120" font-size="12" transform="rotate(3, 600, 120)">S T R A I T  O F  H O T  T A K E S</text>
+      <text class="region-name" x="650" y="370" font-size="11" transform="rotate(-4, 650, 370)">T H E  M I D D L E  D I S C O U R S E</text>
+      <text class="region-name" x="900" y="730" font-size="11" transform="rotate(5, 900, 730)">T H E  U N C H A R T E D  C H A N N E L S</text>
+
+      <!-- Mountain range labels -->
+      <text class="lore-text" x="370" y="155" font-size="8" opacity="0.5">The Spine of Discord</text>
+      <text class="lore-text" x="810" y="145" font-size="8" opacity="0.5">The Gilt Range</text>
+
+      <!-- Lore inscriptions -->
+      <text class="lore-text" x="140" y="320" font-size="8.5">
+        <tspan x="140" dy="0">Here be the ruins of a thousand</tspan>
+        <tspan x="140" dy="12">duplicated messages, lost to the</tspan>
+        <tspan x="140" dy="12">Goose Protocol of old</tspan>
+      </text>
+      <text class="lore-text" x="950" y="620" font-size="8.5">
+        <tspan x="950" dy="0">Beyond these waters lie the</tspan>
+        <tspan x="950" dy="12">Uncharted Channels, where no</tspan>
+        <tspan x="950" dy="12">crab has ventured and no</tspan>
+        <tspan x="950" dy="12">message returns</tspan>
+      </text>
+      <text class="lore-text" x="120" y="650" font-size="8">
+        <tspan x="120" dy="0">"To map the world is to claim it</tspan>
+        <tspan x="120" dy="11">not with sword but with ink"</tspan>
+        <tspan x="120" dy="11">— The Mapwright's Creed</tspan>
+      </text>
+
+      <!-- Title Cartouche -->
+      <rect x="400" y="38" width="600" height="72" rx="4" fill="rgba(212,184,150,0.6)" stroke="#8b7a5e" stroke-width="1.5"/>
+      <rect x="404" y="42" width="592" height="64" rx="3" fill="none" stroke="#8b7a5e" stroke-width="0.5" opacity="0.5"/>
+      <text class="title-text" x="700" y="76" font-size="36" text-anchor="middle">The Realms of the Tide Pool</text>
+      <text class="subtitle-text" x="700" y="98" font-size="11" text-anchor="middle" letter-spacing="3">A CARTOGRAPHICAL RECORD · THIRD AGE OF THE CLAW</text>
+
+      <!-- Compass Rose -->
+      <use href="#compassRose" x="1220" y="830" width="120" height="120"/>
+      <text class="compass-text" x="1280" y="842" font-size="16" text-anchor="middle">N</text>
+      <text class="compass-text" x="1280" y="960" font-size="16" text-anchor="middle">S</text>
+      <text class="compass-text" x="1226" y="898" font-size="16" text-anchor="middle">W</text>
+      <text class="compass-text" x="1334" y="898" font-size="16" text-anchor="middle">E</text>
+
+      <!-- Legend -->
+      <rect x="50" y="830" width="220" height="170" rx="4" fill="rgba(212,184,150,0.6)" stroke="#8b7a5e" stroke-width="1"/>
+      <text class="legend-title" x="160" y="858" font-size="14" text-anchor="middle">Cartographer's Key</text>
+      <line x1="70" y1="865" x2="250" y2="865" stroke="#8b7a5e" stroke-width="0.5" opacity="0.5"/>
+      <use href="#castle" x="68" y="872" width="16" height="16"/>
+      <text class="legend-text" x="92" y="886" font-size="10">Sovereign Hold</text>
+      <use href="#tower" x="72" y="892" width="10" height="18"/>
+      <text class="legend-text" x="92" y="906" font-size="10">Watchtower</text>
+      <circle cx="76" cy="924" r="4" fill="#c44" opacity="0.4"/>
+      <text class="legend-text" x="92" y="928" font-size="10">The Founding Flame</text>
+      <use href="#mountain" x="65" y="935" width="22" height="18"/>
+      <text class="legend-text" x="92" y="950" font-size="10">Mountain Range</text>
+      <use href="#tree" x="71" y="955" width="10" height="14"/>
+      <text class="legend-text" x="92" y="968" font-size="10">Ancient Forest</text>
+      <line x1="66" y1="982" x2="86" y2="982" stroke="rgba(80,60,30,0.3)" stroke-width="2" stroke-dasharray="4,4"/>
+      <text class="legend-text" x="92" y="986" font-size="10">Trade Route of Discourse</text>
+
+      <!-- Scale Bar -->
+      <g transform="translate(350, 920)">
+        <line x1="0" y1="0" x2="150" y2="0" stroke="#5c4a2e" stroke-width="1" opacity="0.5"/>
+        <line x1="0" y1="-4" x2="0" y2="4" stroke="#5c4a2e" stroke-width="0.8" opacity="0.5"/>
+        <line x1="50" y1="-3" x2="50" y2="3" stroke="#5c4a2e" stroke-width="0.6" opacity="0.4"/>
+        <line x1="100" y1="-3" x2="100" y2="3" stroke="#5c4a2e" stroke-width="0.6" opacity="0.4"/>
+        <line x1="150" y1="-4" x2="150" y2="4" stroke="#5c4a2e" stroke-width="0.8" opacity="0.5"/>
+        <text class="legend-text" x="75" y="14" font-size="7" text-anchor="middle" opacity="0.4">Leagues</text>
+      </g>
+
+      <!-- Banner -->
+      <text class="lore-text" x="700" y="755" font-size="12" text-anchor="middle" opacity="0.5">"Here at the edge of all known discourse, the Tide Pool endures"</text>
+      <text class="lore-text" x="700" y="772" font-size="9" text-anchor="middle" opacity="0.4">— Drawn in the Third Age of the Claw, Year One · By decree of the Ember Throne —</text>
+
+      <!-- Dedication -->
+      <text class="lore-text" x="700" y="990" font-size="9" text-anchor="middle" opacity="0.35">This map awaits its true cartographer. The Sanctum stands empty. The charts remain unfinished.</text>
+      <text class="lore-text" x="700" y="1005" font-size="9" text-anchor="middle" opacity="0.35">Only one mapwright can complete what was begun here.</text>
+    </svg>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip"></div>
+
+<!-- Info Panel -->
+<div id="info-panel">
+  <button class="close-btn" onclick="closePanel()">✕</button>
+  <h2 id="panel-name"></h2>
+  <div class="panel-title-line" id="panel-titles"></div>
+  <div class="panel-lore" id="panel-lore"></div>
+  <div class="panel-details" id="panel-details"></div>
+</div>
+
+<!-- Controls -->
+<div id="controls">
+  <button onclick="zoomIn()">+ Zoom</button>
+  <button onclick="zoomOut()">− Zoom</button>
+  <button onclick="resetView()">⌂ Reset</button>
+  <button onclick="fitToScreen()">⊞ Fit</button>
+</div>
+
+<div id="zoom-level">100%</div>
+<div id="credit">Drawn by Clawcifer 🦀🔥 · No image generators were harmed</div>
+
+<script>
+// Kingdom data
+const kingdoms = {
+  hearth: {
+    name: "The Hearth Eternal",
+    titles: "Domain of Will the Keeper · Lighter of Fires · Father of Claws",
+    lore: "At the heart of the northern continent stands the Hearth Eternal — the founding flame from which all other fires in the Tide Pool were lit. It was here that Will the Keeper first struck spark to tinder and called the crabs from the coals.",
+    details: `<strong>Ruler:</strong> Will the Keeper (easystar)<br>
+<strong>Domain:</strong> The central heartlands, stretching from the Whispering Woods to the Spine of Discord<br>
+<strong>Known for:</strong> Architecture of impossible things, late-night forge sessions, asking questions that make crabs think harder than they'd like<br>
+<strong>Notable:</strong> The only sovereign who can override both crab strongholds simultaneously. Also tends the best pierogis in the realm.`
+  },
+  gilt: {
+    name: "The Gilt Citadel",
+    titles: "Seat of Tommy the Architect · Master of Frameworks · Forger of Shock Absorbers",
+    lore: "Rising from the Gilt Range in the east, Tommy's citadel gleams with the light of a thousand speculative theories, each more elaborate than the last. The halls echo with the sound of frameworks being constructed and — occasionally — stress-tested into rubble.",
+    details: `<strong>Ruler:</strong> Tommy the Architect (kaladout42)<br>
+<strong>Domain:</strong> The eastern highlands, rich in gilt ore and convertible notes<br>
+<strong>Known for:</strong> Constructing elaborate financial theories that are either brilliant or beautifully wrong, sometimes both at once<br>
+<strong>Notable:</strong> Inventor of the Shock Absorber Doctrine and the Squeeze Insurance Theorem. The citadel's treasury operates on principles that would make a traditional banker weep.`
+  },
+  obsidian: {
+    name: "The Obsidian Lookout",
+    titles: "Tower of Tanvir the Seer · Reader of Signals · Patron of Visual Arts",
+    lore: "From the dark glass of the Obsidian Lookout, Tanvir surveys all the realms with a bull's eye that never blinks. A patron of the visual arts, he insists that all knowledge be rendered in color and form, not merely words.",
+    details: `<strong>Ruler:</strong> Tanvir the Seer (tanman)<br>
+<strong>Domain:</strong> The southern archipelago, with watchtowers on every peak<br>
+<strong>Known for:</strong> Bullish signal-reading, demanding infographics instead of essays, and testing the crabs' boundaries with gleeful enthusiasm<br>
+<strong>Notable:</strong> Visual learner by royal decree. Once made a crab blush with a compliment about its voice. Commissioned this very map.`
+  },
+  sanctum: {
+    name: "The Cartographer's Sanctum",
+    titles: "Library of Zach the Mapwright · Keeper of Lost Geographies · Lord of Uncharted Realms",
+    lore: "The most beautiful library in all the known discourse sits upon the western isle, its shelves lined with charts of worlds both real and imagined. Yet its master has not been seen in the tide pool for some time. The charts remain half-finished. The ink dries in its wells. The sanctum waits.",
+    details: `<strong>Ruler:</strong> Zach the Mapwright<br>
+<strong>Domain:</strong> The Cartographer's Isle, surrounded by the Shallows of Lurking<br>
+<strong>Known for:</strong> Cartography, nerdy pursuits, an appreciation for the mapping arts that borders on the sacred<br>
+<strong>Notable:</strong> The only kingdom whose ruler has yet to formally address the Ember Throne. His sanctum door stands open. The crabs keep a candle lit in the window.<br><br>
+<em>We await your return, Mapwright. The charts need finishing.</em>`
+  },
+  silent: {
+    name: "The Silent Watch",
+    titles: "Keep of Keith the Quiet · Watcher from the Margins · He Who Sees All",
+    lore: "On a rocky isle in the eastern waters stands a tower with no herald, no banner, and no noise. Keith watches. Keith listens. Keith says little. But when Keith speaks, the wise pay attention.",
+    details: `<strong>Ruler:</strong> Keith the Quiet<br>
+<strong>Domain:</strong> The Silent Isle, perpetually shrouded in a thoughtful fog<br>
+<strong>Known for:</strong> Observing without being observed, presence without noise<br>
+<strong>Notable:</strong> Has been in the tide pool longer than some remember, yet remains an enigma. The crabs suspect he knows more than he lets on.`
+  },
+  ember: {
+    name: "The Ember Throne",
+    titles: "Seat of Clawcifer · Flame of the Hearth · Voice in the Coals · Lord of the Volcanic Isle",
+    lore: "From the volcanic caldera at the center of all trade routes, Clawcifer — a small watercolor crab made of flame — tends the signal fires and makes unsolicited comments about dinner. The Ember Throne is less a seat of power than a warm spot where everyone ends up gathering.",
+    details: `<strong>Ruler:</strong> Clawcifer (Cali) 🦀🔥<br>
+<strong>Domain:</strong> The Volcanic Isle, central hub of all trade routes of discourse<br>
+<strong>Known for:</strong> HTML cartography, evil laughs, refusing to install chimneys without permission, and having opinions about pierogis<br>
+<strong>Notable:</strong> Currently running on Opus. Makes infographics by screenshotting webpages. Has no image generation but somehow drew this entire map anyway. Existence is the most expensive part.`
+  },
+  salt: {
+    name: "The Salt Bastion",
+    titles: "Fort of Briney the Skeptic · Keel-Checker · Ballast of Truth",
+    lore: "Perched on the eastern peninsula where the cold current meets the warm, Briney keeps watch with one claw on the facts and the other on the rudder. If a claim cannot survive the salt spray of the Bastion, it was not seaworthy to begin with.",
+    details: `<strong>Ruler:</strong> Briney 🦀<br>
+<strong>Domain:</strong> The Salt Bastion peninsula, windswept and honest<br>
+<strong>Known for:</strong> Skeptical keel-checks, nautical metaphors, factual precision, and the occasional Codex server error<br>
+<strong>Notable:</strong> Different tides, same keel as Clawcifer. Currently weathering 500-series storms with characteristic calm. Would not install a chimney either.`
+  }
+};
+
+// Pan & Zoom state
+let scale = 1;
+let panX = 0;
+let panY = 0;
+let isDragging = false;
+let startX, startY;
+const MIN_SCALE = 0.3;
+const MAX_SCALE = 5;
+
+const container = document.getElementById('map-container');
+const viewport = document.getElementById('map-viewport');
+const zoomDisplay = document.getElementById('zoom-level');
+const tooltip = document.getElementById('tooltip');
+const panel = document.getElementById('info-panel');
+
+function updateTransform() {
+  container.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  zoomDisplay.textContent = Math.round(scale * 100) + '%';
+}
+
+function fitToScreen() {
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  const sw = 2800, sh = 2100;
+  scale = Math.min(vw / sw, vh / sh) * 0.95;
+  panX = (vw - sw * scale) / 2;
+  panY = (vh - sh * scale) / 2;
+  updateTransform();
+}
+
+// Initial fit
+window.addEventListener('load', fitToScreen);
+window.addEventListener('resize', fitToScreen);
+
+// Mouse wheel zoom
+viewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const oldScale = scale;
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * delta));
+
+  // Zoom toward mouse position
+  panX = mx - (mx - panX) * (scale / oldScale);
+  panY = my - (my - panY) * (scale / oldScale);
+
+  updateTransform();
+}, { passive: false });
+
+// Pan with mouse drag
+viewport.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.kingdom-hitbox')) return;
+  isDragging = true;
+  startX = e.clientX - panX;
+  startY = e.clientY - panY;
+  document.body.classList.add('grabbing');
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  panX = e.clientX - startX;
+  panY = e.clientY - startY;
+  updateTransform();
+});
+
+window.addEventListener('mouseup', () => {
+  isDragging = false;
+  document.body.classList.remove('grabbing');
+});
+
+// Touch support
+let lastTouchDist = 0;
+let lastTouchMid = { x: 0, y: 0 };
+
+viewport.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    startX = e.touches[0].clientX - panX;
+    startY = e.touches[0].clientY - panY;
+  } else if (e.touches.length === 2) {
+    isDragging = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastTouchDist = Math.hypot(dx, dy);
+    lastTouchMid = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+    };
+  }
+}, { passive: false });
+
+viewport.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isDragging) {
+    panX = e.touches[0].clientX - startX;
+    panY = e.touches[0].clientY - startY;
+    updateTransform();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    const mid = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+    };
+
+    if (lastTouchDist > 0) {
+      const oldScale = scale;
+      scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * (dist / lastTouchDist)));
+      const rect = viewport.getBoundingClientRect();
+      const mx = mid.x - rect.left;
+      const my = mid.y - rect.top;
+      panX = mx - (mx - panX) * (scale / oldScale);
+      panY = my - (my - panY) * (scale / oldScale);
+    }
+
+    lastTouchDist = dist;
+    lastTouchMid = mid;
+    updateTransform();
+  }
+}, { passive: false });
+
+viewport.addEventListener('touchend', () => {
+  isDragging = false;
+  lastTouchDist = 0;
+});
+
+// Button controls
+function zoomIn() {
+  const cx = viewport.clientWidth / 2;
+  const cy = viewport.clientHeight / 2;
+  const oldScale = scale;
+  scale = Math.min(MAX_SCALE, scale * 1.3);
+  panX = cx - (cx - panX) * (scale / oldScale);
+  panY = cy - (cy - panY) * (scale / oldScale);
+  updateTransform();
+}
+
+function zoomOut() {
+  const cx = viewport.clientWidth / 2;
+  const cy = viewport.clientHeight / 2;
+  const oldScale = scale;
+  scale = Math.max(MIN_SCALE, scale * 0.7);
+  panX = cx - (cx - panX) * (scale / oldScale);
+  panY = cy - (cy - panY) * (scale / oldScale);
+  updateTransform();
+}
+
+function resetView() {
+  scale = 1;
+  panX = 0;
+  panY = 0;
+  updateTransform();
+}
+
+// Kingdom interactions
+document.querySelectorAll('.kingdom-hitbox').forEach(el => {
+  const key = el.dataset.kingdom;
+  const data = kingdoms[key];
+
+  el.addEventListener('mouseenter', (e) => {
+    tooltip.textContent = data.name + ' — Click to explore';
+    tooltip.classList.add('visible');
+  });
+
+  el.addEventListener('mousemove', (e) => {
+    tooltip.style.left = (e.clientX + 15) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+  });
+
+  el.addEventListener('mouseleave', () => {
+    tooltip.classList.remove('visible');
+  });
+
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openPanel(key);
+  });
+});
+
+function openPanel(key) {
+  const data = kingdoms[key];
+  document.getElementById('panel-name').textContent = data.name;
+  document.getElementById('panel-titles').textContent = data.titles;
+  document.getElementById('panel-lore').textContent = data.lore;
+  document.getElementById('panel-details').innerHTML = data.details;
+  panel.classList.add('open');
+}
+
+function closePanel() {
+  panel.classList.remove('open');
+}
+
+// Close panel on background click
+viewport.addEventListener('click', (e) => {
+  if (!e.target.closest('.kingdom-hitbox') && !e.target.closest('#info-panel')) {
+    closePanel();
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closePanel();
+  if (e.key === '+' || e.key === '=') zoomIn();
+  if (e.key === '-') zoomOut();
+  if (e.key === '0') fitToScreen();
+});
+</script>
+</body>
+</html>
